@@ -1,0 +1,95 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      WAIT_HOSTS: mysql:${DB_PORT}, redis:${REDIS_PORT}, broker:${KAFKA_PORT}
+      WAIT_TIMEOUT: 50
+    volumes:
+      - .:/usr/src/app
+      - ./wait:/wait
+    ports:
+      - ${APP_PORT}:${APP_PORT}
+      - ${APP_DEBUG}:${APP_DEBUG}
+    command: sh -c  "chmod +x /wait && /wait && npm run start:debug"
+
+  flyway:
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: ./migrations.Dockerfile
+    volumes:
+      - ./migrations/sql:/flyway/sql
+      - ./wait:/wait
+    env_file:
+      - .env
+    environment:
+      FLYWAY_EDITION: community
+      WAIT_HOSTS: mysql:${DB_PORT}
+      WAIT_TIMEOUT: 50
+    command: sh -c  "chmod +x /wait && /wait && ./flyway -url='jdbc:mysql://mysql:${DB_PORT}/${DB_NAME}?useUnicode=true&characterEncoding=utf8&useSSL=false' -schemas=${DB_NAME} -user=${DB_USER} -password=${DB_PASSWORD} migrate"
+
+  mysql:
+    platform: linux/amd64
+    image: mysql:8.0
+    ports:
+      - '${DB_PORT}:${DB_PORT}'
+    volumes:
+      - v-local-mysql:/var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: '${DB_PASSWORD}'
+      MYSQL_DATABASE: '${DB_NAME}'
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    ports:
+      - 2181:2181
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_LOG4J_ROOT_LOGLEVEL: WARN
+      ZOOKEEPER_TOOLS_LOG4J_LOGLEVEL: WARN
+
+  broker:
+    image: confluentinc/cp-kafka:latest
+    restart: always
+    depends_on:
+      - zookeeper
+    ports:
+      - 29092:29092
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:${KAFKA_PORT},PLAINTEXT_HOST://localhost:29092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_LOG4J_ROOT_LOGLEVEL: WARN
+      KAFKA_LOG4J_LOGGERS: 'kafka=WARN,kafka.controller=WARN,kafka.producer.async.DefaultEventHandler=WARN,state.change.logger=WARN'
+      KAFKA_TOOLS_LOG4J_LOGLEVEL: WARN
+      WAIT_HOSTS: zookeeper:2181
+      WAIT_TIMEOUT: 50
+      WAIT_AFTER: 20
+
+  # A GUI to manage Kafka topics, messages, and more. Uncomment to access
+  kafka_ui:
+    image: provectuslabs/kafka-ui:latest
+    depends_on:
+      - broker
+    ports:
+      - 8080:8080
+    environment:
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: broker:${KAFKA_PORT}
+
+  redis:
+    image: redis:latest
+    ports:
+      - ${REDIS_PORT}:${REDIS_PORT}
+
+volumes:
+  v-local-mysql:
