@@ -1,0 +1,2 @@
+remote_write:
+  - url: "http://otel-collector:4317"

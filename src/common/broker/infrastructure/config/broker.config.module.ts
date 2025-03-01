@@ -9,8 +9,8 @@ import { BrokerConfigService } from './broker.config.service';
     ConfigModule.forRoot({
       load: [configuration],
       validationSchema: Joi.object({
-        KAFKA_HOST: Joi.string().required(),
-        KAFKA_PORT: Joi.string().required()
+        BROKER_HOST: Joi.string().required(),
+        BROKER_PORT: Joi.string().required()
       }),
       isGlobal: true
     })

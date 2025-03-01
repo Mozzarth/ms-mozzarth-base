@@ -10,7 +10,7 @@ export interface PersonCreateCommandProps {
 export class PersonCreateCommand {
   @IsUUID()
   @IsOptional()
-  readonly id: string;
+  readonly id?: string;
 
   @IsString()
   @IsNotEmpty()

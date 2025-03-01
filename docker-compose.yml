@@ -6,7 +6,7 @@ services:
     env_file:
       - .env
     environment:
-      WAIT_HOSTS: mysql:${DB_PORT}, redis:${REDIS_PORT}, broker:${KAFKA_PORT}
+      WAIT_HOSTS: mysql:${DB_PORT}, redis:${REDIS_PORT}, broker:${BROKER_PORT}, otel-collector:${OTEL_EXPORTER_OTLP_PORT}
       WAIT_TIMEOUT: 50
     volumes:
       - .:/usr/src/app
@@ -38,41 +38,40 @@ services:
     ports:
       - '${DB_PORT}:${DB_PORT}'
     volumes:
-      - v-local-mysql:/var/lib/mysql
+      - ./docker-volumes/mysql/.init/:/docker-entrypoint-initdb.d
+      - ./docker-volumes/mysql/.data/:/var/lib/mysql
     command: --default-authentication-plugin=mysql_native_password
     environment:
-      MYSQL_ROOT_PASSWORD: '${DB_PASSWORD}'
       MYSQL_DATABASE: '${DB_NAME}'
-
-  zookeeper:
-    image: confluentinc/cp-zookeeper:latest
-    ports:
-      - 2181:2181
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-      ZOOKEEPER_LOG4J_ROOT_LOGLEVEL: WARN
-      ZOOKEEPER_TOOLS_LOG4J_LOGLEVEL: WARN
+      MYSQL_ROOT_PASSWORD: '${DB_PASSWORD}'
 
   broker:
+    # https://dev.to/deeshath/apache-kafka-kraft-mode-setup-5nj
     image: confluentinc/cp-kafka:latest
     restart: always
-    depends_on:
-      - zookeeper
     ports:
-      - 29092:29092
+      - 9092:9092
+      - 9093:9093
     environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:${KAFKA_PORT},PLAINTEXT_HOST://localhost:29092
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_LOG4J_ROOT_LOGLEVEL: WARN
-      KAFKA_LOG4J_LOGGERS: 'kafka=WARN,kafka.controller=WARN,kafka.producer.async.DefaultEventHandler=WARN,state.change.logger=WARN'
-      KAFKA_TOOLS_LOG4J_LOGLEVEL: WARN
-      WAIT_HOSTS: zookeeper:2181
-      WAIT_TIMEOUT: 50
-      WAIT_AFTER: 20
+      # Configuración de KRaft
+      KAFKA_KRAFT_MODE: 'true' # This enables KRaft mode in Kafka.
+      KAFKA_PROCESS_ROLES: controller,broker # Kafka acts as both broker and controller.
+      KAFKA_NODE_ID: 1 # A unique ID for this Kafka instance.
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@broker:9093' # Defines the controller voters.
+      KAFKA_LISTENERS: PLAINTEXT://broker:9092,CONTROLLER://broker:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:9092
+      KAFKA_LOG_DIRS: /var/lib/kafka/data # Where Kafka stores its logs.
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true' # Kafka will automatically create topics if needed.
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1 # Since we’re running one broker, one replica is enough.
+      KAFKA_LOG_RETENTION_HOURS: 168 # Keep logs for 7 days.
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0 # No delay for consumer rebalancing.
+      CLUSTER_ID: 'p8fFEbKGQ22B6M_Da_vCBw' # https://sleeplessbeastie.eu/2021/10/22/how-to-generate-kafka-cluster-id/
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./docker-volumes/kafka:/var/lib/kafka/data # Store Kafka logs on your local machine.
 
   # A GUI to manage Kafka topics, messages, and more. Uncomment to access
   kafka_ui:
@@ -84,12 +83,65 @@ services:
     environment:
       KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
       KAFKA_CLUSTERS_0_NAME: local
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: broker:${KAFKA_PORT}
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: broker:${BROKER_PORT}
 
   redis:
     image: redis:latest
     ports:
       - ${REDIS_PORT}:${REDIS_PORT}
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: otel-collector
+    command: ['--config=/etc/otel-collector-config.yml']
+    volumes:
+      - ./otel-collector-config.yml:/etc/otel-collector-config.yml
+    ports:
+      - '4317:4317' # Puerto para recibir datos de NestJS (OTLP gRPC)
+      - '4318:4318' # Puerto OTLP HTTP
+    depends_on:
+      # - loki
+      - tempo
+      - prometheus
+  tempo:
+    image: grafana/tempo:latest
+    container_name: tempo
+    volumes:
+      - ./tempo.yml:/etc/tempo.yml
+    command: ['-config.file=/etc/tempo.yml']
+    ports:
+      - '3200:3200' # API de Tempo
+      - '4319:4317' # Recibir OTLP gRPC
+
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    container_name: prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - '9090:9090'
+
+  loki:
+    image: grafana/loki:3
+    user: '10001:10001' # 👈 Asegura que Loki tenga permisos
+    container_name: loki
+    volumes:
+      - ./docker-volumes/loki-data:/data/loki
+      - ./loki.yml:/etc/loki/loki.yml
+    command: -config.file=/etc/loki/loki.yml
+    ports:
+      - '3100:3100' # Loki HTTP API
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - '3001:3000'
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      # - loki
+      - tempo
+      - prometheus
 
 volumes:
-  v-local-mysql:
+  grafana_data:

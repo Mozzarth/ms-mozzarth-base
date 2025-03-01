@@ -1,0 +1,36 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: "0.0.0.0:4317"
+      http:
+        endpoint: "0.0.0.0:4318"
+
+exporters:
+  otlp:
+    endpoint: tempo:4319
+    tls:
+      insecure: true
+  prometheusremotewrite:
+    endpoint: "http://prometheus:9090/api/v1/write"  # Endpoint de Prometheus
+    tls:
+      insecure: true  # Desactiva TLS si Prometheus no usa HTTPS
+  loki:
+    endpoint: "http://loki:3100/loki/api/v1/push"
+
+processors:
+  batch: {}
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp]
+    metrics:
+      receivers: [otlp]
+      exporters: [prometheusremotewrite]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [loki]

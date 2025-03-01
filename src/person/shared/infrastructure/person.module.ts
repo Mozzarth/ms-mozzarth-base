@@ -8,7 +8,7 @@ import { CqrsModule } from '@nestjs/cqrs';
 import { PersonListener } from './listeners/person.listener';
 import { PersonUpdateHandler } from 'src/person/update/application/handlers/person-update.command-handler';
 import { PersonController } from './controllers/person.controller';
-import { PersonCreatedEventHandlerLog } from 'src/person/create/application/handlers/person-created.event-handler';
+import { PersonCreatedEventHandlerLog } from 'src/person/create/application/handlers/person-created.event-handler-log';
 import { PersonUpdatedEventHandlerLog } from 'src/person/update/application/handlers/person-updated.event-handler';
 
 @Module({

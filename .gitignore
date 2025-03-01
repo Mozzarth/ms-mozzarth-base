@@ -38,3 +38,7 @@ lerna-debug.log*
 
 # tunder
 /thunder-tests
+
+
+# Volume ignoring section:
+/docker-volumes

@@ -27,7 +27,6 @@ export class AppConfigService {
     Host: ${this.configService.get<string>('app.host')}
     Port: ${this.configService.get<string>('app.port')}
     Context Path: ${this.configService.get<string>('app.baseContextPath')}
-    Environment: ${this.configService.get<string>('app.env')}
     `;
   }
 }

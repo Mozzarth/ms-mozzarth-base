@@ -1,25 +1,22 @@
 import { Inject, Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
-import { ProducerService } from 'src/common/broker/domain/adapters/producer.service';
+import { EventPayload, ProducerService } from 'src/common/broker/domain/adapters/producer.service';
 import { ClientKafka } from '@nestjs/microservices';
-import { DateHelper } from 'src/common/app/helper/date.helper';
 import { StringHelper } from 'src/common/app/helper/string.helper';
-import { Message, RecordMetadata } from '@nestjs/microservices/external/kafka.interface';
+import { RecordMetadata } from '@nestjs/microservices/external/kafka.interface';
 import { ConfigService } from '@nestjs/config';
 import { catchError, firstValueFrom, map, of, timeout } from 'rxjs';
+import { EventBrokerData } from '../event.event';
+import { BROKER } from '../config/broker.enum';
 
 @Injectable()
 export class KafkaProducerService implements OnApplicationBootstrap, ProducerService {
   private readonly timeout: number;
-  private readonly timeZone: string;
-  private readonly countryCode: string;
   protected logger = new Logger(KafkaProducerService.name);
 
   constructor(
     private readonly configService: ConfigService,
     @Inject('KAFKA_SERVICE') private readonly clientKafka: ClientKafka
   ) {
-    this.timeZone = this.configService.get<string>('global.time_zone');
-    this.countryCode = this.configService.get<string>('global.country_code');
     this.timeout = Number(this.configService.get<number>('kafka.producer_send_timeout'));
   }
 
@@ -28,14 +25,14 @@ export class KafkaProducerService implements OnApplicationBootstrap, ProducerSer
     this.logger.log('Kafka Client Connected');
   }
 
-  public async emit<T = any>(topic: string, message: T, partition?: number): Promise<boolean> {
-    const payload = this.buildPayload([message, partition])[0];
+  public async emit<T = any>(topic: string, message: EventPayload<T>, partition?: number): Promise<boolean> {
+    const payload = this.buildPayload(message, partition);
     return firstValueFrom(
       this.clientKafka.emit(topic, payload).pipe(
         timeout(this.timeout),
         map((result: RecordMetadata[]) => {
           if (result[0].errorCode != 0) return false;
-          this.logger.log(`-> Sending message [${topic}]: ${payload.value}`);
+          this.logger.log(`-> Sending message [${topic}]: ${payload}`);
           return true;
         }),
         catchError((e) => {
@@ -46,17 +43,13 @@ export class KafkaProducerService implements OnApplicationBootstrap, ProducerSer
     );
   }
 
-  private buildPayload<T>(messages: T[], partition?: number) {
-    const timestamp = DateHelper.timestamp({ timezone: this.timeZone }).toString();
-    return messages.map((m) => {
-      const message: Message = {
-        key: StringHelper.generateUUID(),
-        value: JSON.stringify(m),
-        headers: { country: this.countryCode },
-        timestamp,
-        partition
-      };
-      return message;
-    });
+  private buildPayload<T>(value: T, partition?: number): EventBrokerData<T> {
+    return {
+      value,
+      partition,
+      source: BROKER.NAME.toString(),
+      timestamp: new Date().toISOString(),
+      metadata: { traceId: StringHelper.generateUUID() }
+    };
   }
 }

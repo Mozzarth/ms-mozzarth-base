@@ -8,15 +8,15 @@ export class BrokerConfigService {
   constructor(private configService: ConfigService) {}
 
   get host(): string {
-    return this.configService.get<string>('kafka.host');
+    return this.configService.get<string>('broker.host');
   }
 
   get port(): string {
-    return this.configService.get<string>('kafka.port');
+    return this.configService.get<string>('broker.port');
   }
 
   get producer_send_timeout(): number {
-    return this.configService.get<number>('kafka.producer_send_timeout');
+    return this.configService.get<number>('broker.producer_send_timeout');
   }
 
   get service(): string {
@@ -40,6 +40,8 @@ export class BrokerConfigService {
   }
 
   static async initialize(app: INestApplication): Promise<void> {
+    if (process.env.IS_WORKER != 'true') return;
+    console.log('BrokerConfigService.initialize');
     const appConfig = app.get(BrokerConfigService);
     app.connectMicroservice({
       name: BROKER.NAME.toString(),

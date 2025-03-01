@@ -21,7 +21,7 @@ export class PersonCreateHandler implements ICommandHandler<PersonCreateCommand>
   public async execute(input: PersonCreateCommand): Promise<Person> {
     try {
       const existing = await this.repository.findOne({ id: input.id });
-      if (!existing) return this.commandBus.execute(PersonUpdateCommand.create(input));
+      if (existing) return this.commandBus.execute(PersonUpdateCommand.create({ id: existing.id, ...input }));
 
       const newPerson = await this.repository.save(PersonCreateCommandToDto.map(input));
       this.eventBus.publish(new PersonCreatedEvent(newPerson));

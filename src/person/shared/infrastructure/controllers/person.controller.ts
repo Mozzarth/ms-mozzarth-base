@@ -6,6 +6,7 @@ import { PersonCreateCommand } from 'src/person/create/application/commands/pers
 import { PersonUpdateDto } from 'src/person/update/domain/dtos/person.update.dto';
 import { PersonUpdateCommand } from 'src/person/update/application/commands/person-update.command';
 import { PersonUpdateControllerDto } from 'src/person/update/infrastructure/dtos/person-update.dto';
+import { MessageTopic } from 'src/common/broker/infrastructure/decorators/kafka.decorator';
 
 @Controller('person')
 @ApiTags('Person')
@@ -34,4 +35,6 @@ export class PersonController {
   public async update(@Body() input: PersonUpdateControllerDto) {
     return await this.commandBus.execute(PersonUpdateCommand.create(input));
   }
+
+  // @MessageTopic(InventoryEvent.WORKER_EXECUTION)
 }
