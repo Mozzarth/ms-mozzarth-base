@@ -15,6 +15,9 @@ services:
       - ${APP_PORT}:${APP_PORT}
       - ${APP_DEBUG}:${APP_DEBUG}
     command: sh -c  "chmod +x /wait && /wait && npm run start:debug"
+    networks:
+      - infra
+      - monitoring
 
   flyway:
     platform: linux/amd64
@@ -31,6 +34,8 @@ services:
       WAIT_HOSTS: mysql:${DB_PORT}
       WAIT_TIMEOUT: 50
     command: sh -c  "chmod +x /wait && /wait && ./flyway -url='jdbc:mysql://mysql:${DB_PORT}/${DB_NAME}?useUnicode=true&characterEncoding=utf8&useSSL=false' -schemas=${DB_NAME} -user=${DB_USER} -password=${DB_PASSWORD} migrate"
+    networks:
+      - infra
 
   mysql:
     platform: linux/amd64
@@ -44,6 +49,8 @@ services:
     environment:
       MYSQL_DATABASE: '${DB_NAME}'
       MYSQL_ROOT_PASSWORD: '${DB_PASSWORD}'
+    networks:
+      - infra
 
   broker:
     # https://dev.to/deeshath/apache-kafka-kraft-mode-setup-5nj
@@ -72,6 +79,8 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./docker-volumes/kafka:/var/lib/kafka/data # Store Kafka logs on your local machine.
+    networks:
+      - infra
 
   # A GUI to manage Kafka topics, messages, and more. Uncomment to access
   kafka_ui:
@@ -84,11 +93,16 @@ services:
       KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: broker:${BROKER_PORT}
+    networks:
+      - infra
 
   redis:
     image: redis:latest
     ports:
       - ${REDIS_PORT}:${REDIS_PORT}
+    networks:
+      - infra
+
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
     container_name: otel-collector
@@ -99,9 +113,12 @@ services:
       - '4317:4317' # Puerto para recibir datos de NestJS (OTLP gRPC)
       - '4318:4318' # Puerto OTLP HTTP
     depends_on:
-      # - loki
+      - loki
       - tempo
       - prometheus
+    networks:
+      - monitoring
+
   tempo:
     image: grafana/tempo:latest
     container_name: tempo
@@ -109,27 +126,37 @@ services:
       - ./tempo.yml:/etc/tempo.yml
     command: ['-config.file=/etc/tempo.yml']
     ports:
-      - '3200:3200' # API de Tempo
-      - '4319:4317' # Recibir OTLP gRPC
+      - '3200:3200' # Tempo HTTP API
+      - '14317:4317' # OTLP gRPC
+      - '14318:4318' # OTLP HTTP
+    networks:
+      - monitoring
 
   prometheus:
     image: prom/prometheus:v3.2.1
     container_name: prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--web.enable-remote-write-receiver'
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
       - '9090:9090'
+    networks:
+      - monitoring
 
   loki:
     image: grafana/loki:3
-    user: '10001:10001' # 👈 Asegura que Loki tenga permisos
+    user: '1000:1000' # 👈 Asegura que Loki tenga permisos
     container_name: loki
     volumes:
-      - ./docker-volumes/loki-data:/data/loki
-      - ./loki.yml:/etc/loki/loki.yml
-    command: -config.file=/etc/loki/loki.yml
+      - ./docker-volumes/loki:/data/loki
+      - ./loki.yml:/mnt/config/loki.yml
+    command: -config.expand-env=true -config.file=/mnt/config/loki.yml
     ports:
       - '3100:3100' # Loki HTTP API
+    networks:
+      - monitoring
 
   grafana:
     image: grafana/grafana:latest
@@ -139,9 +166,15 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
     depends_on:
-      # - loki
+      - loki
       - tempo
       - prometheus
+    networks:
+      - monitoring
 
 volumes:
   grafana_data:
+networks:
+  infra:
+  monitoring:
+    driver: bridge

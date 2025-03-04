@@ -8,17 +8,17 @@ import { SwaggerConfigService } from './common/infrastructure/config/swagger/swa
 import { BrokerConfigService } from './common/broker/infrastructure/config/broker.config.service';
 import { CatchAllErrorsFilter } from './common/infrastructure/exception-filter/catch-all-errors.filter';
 import { ValidationPipeGlobal } from './common/infrastructure/pipe/validation-pipe.global';
+import { OtelWinstonLogger } from './common/infrastructure/logger';
 process.env.TZ = 'UTC';
 
 async function bootstrap() {
-  // Initial const(s)
-  const logger = new Logger(bootstrap.name);
-
   // AppModule Configuration
   const app = await NestFactory.create(AppModule, {
+    bufferLogs: true,
     logger: ['error', 'warn', 'log']
   });
 
+  const logger = new Logger(bootstrap.name);
   app.useGlobalFilters(new CatchAllErrorsFilter());
 
   const appConfig: AppConfigService = app.get(AppConfigService);
@@ -37,6 +37,7 @@ async function bootstrap() {
   await app.startAllMicroservices();
 
   // Start the server
+  app.useLogger(new OtelWinstonLogger());
   await app.listen(appConfig.port, appConfig.host);
   logger.log(appConfig.buildBanner);
 }

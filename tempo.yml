@@ -6,9 +6,18 @@ distributor:
     otlp:
       protocols:
         grpc:
+            endpoint: 0.0.0.0:4317
+        http:
+            endpoint: 0.0.0.0:4318
 
 storage:
   trace:
     backend: local
     local:
-      path: /tmp/tempo
+      path: /tmp/tempo/traces
+
+compactor:
+  compaction:
+    compacted_block_retention: 48h
+
+
