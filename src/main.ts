@@ -1,4 +1,3 @@
-import 'src/common/infrastructure/monitoring/tracing';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
@@ -8,17 +7,17 @@ import { SwaggerConfigService } from './common/infrastructure/config/swagger/swa
 import { BrokerConfigService } from './common/broker/infrastructure/config/broker.config.service';
 import { CatchAllErrorsFilter } from './common/infrastructure/exception-filter/catch-all-errors.filter';
 import { ValidationPipeGlobal } from './common/infrastructure/pipe/validation-pipe.global';
-process.env.TZ = 'UTC';
+import { OtelWinstonLogger } from './common/infrastructure/logger';
+import { initializeOpenTelemetry } from './common/infrastructure/monitoring/tracing';
 
 async function bootstrap() {
-  // Initial const(s)
-  const logger = new Logger(bootstrap.name);
-
-  // AppModule Configuration
+  initializeOpenTelemetry();
   const app = await NestFactory.create(AppModule, {
+    bufferLogs: true,
     logger: ['error', 'warn', 'log']
   });
 
+  const logger = new Logger(bootstrap.name);
   app.useGlobalFilters(new CatchAllErrorsFilter());
 
   const appConfig: AppConfigService = app.get(AppConfigService);
@@ -26,7 +25,7 @@ async function bootstrap() {
 
   // Swagger Setup
   const swaggerConfig: SwaggerConfigService = app.get(SwaggerConfigService);
-  SwaggerModule.setup(`${appConfig.baseContextPath + '/internal-ms' + swaggerConfig.path}`, app, swaggerConfig.buildDocument(app));
+  SwaggerModule.setup(appConfig.documentationPath, app, swaggerConfig.buildDocument(app));
 
   /* Configuring the Kafka. */
   BrokerConfigService.initialize(app);
@@ -37,8 +36,9 @@ async function bootstrap() {
   await app.startAllMicroservices();
 
   // Start the server
-  await app.listen(appConfig.port, appConfig.host);
+  await app.listen(appConfig.port);
   logger.log(appConfig.buildBanner);
+  app.useLogger(new OtelWinstonLogger());
 }
 
 bootstrap();

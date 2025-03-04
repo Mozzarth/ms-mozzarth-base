@@ -9,7 +9,7 @@ import { GlobalConfigService } from './global.config.service';
     ConfigModule.forRoot({
       load: [configuration],
       validationSchema: Joi.object({
-        TIME_ZONE: Joi.string().required(),
+        TZ: Joi.string().required(),
         INTERNAL_MICROSERVICES_URL: Joi.string().required()
       })
     })

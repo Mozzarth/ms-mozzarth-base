@@ -2,7 +2,6 @@ import { BaseModel } from 'src/common/domain/model/base.model';
 
 export class Person extends BaseModel {
   name: string;
-
   dateOfBirth: Date; // nacimiento dia mes año y hora
 
   constructor(input: { id: string; name: string; dateOfBirth: Date; createdAt: Date }) {

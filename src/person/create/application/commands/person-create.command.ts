@@ -8,15 +8,8 @@ export interface PersonCreateCommandProps {
 }
 
 export class PersonCreateCommand {
-  @IsUUID()
-  @IsOptional()
   readonly id?: string;
-
-  @IsString()
-  @IsNotEmpty()
   readonly name: string;
-
-  @IsDate()
   readonly birthdate: Date;
 
   private constructor(props: PersonCreateCommandProps) {

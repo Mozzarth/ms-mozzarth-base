@@ -4,8 +4,8 @@ import { SwaggerConfigModule } from './swagger/swagger.config.module';
 import { GlobalConfigModule } from './global/global.config.module';
 
 @Module({
-  imports: [AppConfigModule, SwaggerConfigModule, GlobalConfigModule],
   providers: [],
-  exports: [AppConfigModule]
+  exports: [AppConfigModule],
+  imports: [AppConfigModule, SwaggerConfigModule, GlobalConfigModule]
 })
-export class TurboConfigModule {}
+export class InfraConfigurationModule {}

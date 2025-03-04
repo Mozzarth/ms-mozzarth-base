@@ -13,20 +13,24 @@ export class AppConfigService {
     return this.configService.get<string>('app.baseContextPath');
   }
 
+  get documentationPath(): string {
+    return `${this.baseContextPath}/internal-ms/doc`;
+  }
+
   get port(): number {
     return Number(this.configService.get<number>('app.port'));
   }
 
-  get host(): string {
-    return this.configService.get<string>('app.host');
+  private banner(): string {
+    return this.configService.get<string>('app.banner');
   }
 
   get buildBanner(): string {
     return `
-    ${this.configService.get<string>('app.banner')}
-    Host: ${this.configService.get<string>('app.host')}
-    Port: ${this.configService.get<string>('app.port')}
-    Context Path: ${this.configService.get<string>('app.baseContextPath')}
+    ${this.banner()}
+    Port: ${this.port}
+    Context Path:  http://localhost:${this.port}/${this.baseContextPath}
+    Documentation: http://localhost:${this.port}/${this.documentationPath}
     `;
   }
 }

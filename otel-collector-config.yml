@@ -2,13 +2,13 @@ receivers:
   otlp:
     protocols:
       grpc:
-        endpoint: "0.0.0.0:4317"
-      http:
-        endpoint: "0.0.0.0:4318"
+        endpoint: 0.0.0.0:4317
+      http: 
+        endpoint: 0.0.0.0:4318
 
 exporters:
-  otlp:
-    endpoint: tempo:4319
+  otlphttp:
+    endpoint: "http://tempo:4318"  # Endpoint de Tempo
     tls:
       insecure: true
   prometheusremotewrite:
@@ -16,17 +16,25 @@ exporters:
     tls:
       insecure: true  # Desactiva TLS si Prometheus no usa HTTPS
   loki:
-    endpoint: "http://loki:3100/loki/api/v1/push"
+    endpoint: http://loki:3100/loki/api/v1/push
+    tls:
+      insecure: true
 
 processors:
-  batch: {}
+  batch:  # Agrupa items antes de enviarlos para optimizar rendimiento
+    timeout: 10s # Tiempo máximo para agrupar items, Si ya transcurrió, se envía
+    send_batch_size: 50 # Número de items a agrupar, Si se llega a este número, se envía
+
 
 service:
+  telemetry:
+    logs:
+      level: debug
   pipelines:
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [otlp]
+      exporters: [otlphttp]
     metrics:
       receivers: [otlp]
       exporters: [prometheusremotewrite]

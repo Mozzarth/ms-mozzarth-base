@@ -1,14 +1,14 @@
 import * as redisStore from 'cache-manager-redis-store';
 import { Module } from '@nestjs/common';
 import { RedisCacheService } from './infrastructure/connection/redis-cache.service';
-import { TurboConfigModule } from '../infrastructure/config/turbo-config.module';
+import { InfraConfigurationModule } from '../infrastructure/config/infra-config.module';
 import { CacheModule } from '@nestjs/cache-manager';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import RedisConfig from './infrastructure/connection/redis-caching.config';
 
 @Module({
   imports: [
-    TurboConfigModule,
+    InfraConfigurationModule,
     CacheModule.registerAsync({
       isGlobal: true,
       imports: [ConfigModule.forRoot({ load: [RedisConfig] })],
